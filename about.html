@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+  <title>About — GitHub ASCII Cube</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header {
+      border-bottom: 1px solid #21262d;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f0f6fc;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+    }
+    header nav { display: flex; gap: 16px; }
+    header nav a {
+      font-size: 14px;
+      color: #8b949e;
+      padding: 4px 0;
+      transition: color .2s;
+    }
+    header nav a:hover { color: #f0f6fc; text-decoration: none; }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+      flex: 1;
+    }
+
+    h2 {
+      font-size: 28px;
+      font-weight: 600;
+      color: #f0f6fc;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #21262d;
+      padding-bottom: 8px;
+    }
+
+    h3 {
+      font-size: 18px;
+      color: #f0f6fc;
+      margin: 32px 0 12px;
+    }
+
+    p, li { font-size: 15px; }
+    p { margin-bottom: 16px; }
+    ul { padding-left: 24px; margin-bottom: 16px; }
+    li { margin-bottom: 6px; }
+
+    .badge {
+      display: inline-block;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: #8b949e;
+    }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 16px 0 24px;
+    }
+    .tech-card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .tech-card strong { color: #f0f6fc; display: block; margin-bottom: 4px; }
+    .tech-card span { font-size: 13px; color: #8b949e; }
+
+    kbd {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: #c9d1d9;
+    }
+
+    .controls-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 24px;
+    }
+    .controls-table th, .controls-table td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid #21262d;
+      font-size: 14px;
+    }
+    .controls-table th { color: #8b949e; font-weight: 500; }
+
+    footer {
+      border-top: 1px solid #21262d;
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: #484f58;
+    }
+
+    @media (max-width: 600px) {
+      main { padding: 32px 16px 60px; }
+      h2 { font-size: 22px; }
+      .tech-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>&#35; GitHub ASCII Cube</h1>
+    <nav>
+      <a href="index.html">← Back to Cube</a>
+      <a href="https://github.com/Manaiakalani/github-ascii-cube">GitHub Repo</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2>About This Project</h2>
+    <p>
+      A faithful recreation of the 3D ASCII cube found in the footer of
+      <a href="https://thegithubshop.com" target="_blank" rel="noopener">thegithubshop.com</a>.
+      The cube renders the GitHub Mona (Invertocat) logo as a texture on a rotating 3D box,
+      then transforms the entire scene into ASCII art using a custom GLSL post-processing shader.
+    </p>
+    <p>
+      The original implementation was reverse-engineered from the GitHub Shop's production bundle and
+      recreated as a standalone, zero-dependency HTML file (Three.js loaded via CDN).
+    </p>
+
+    <h3>Tech Stack</h3>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <strong>Three.js <span class="badge">r170</span></strong>
+        <span>WebGL 3D rendering engine</span>
+      </div>
+      <div class="tech-card">
+        <strong>GLSL Shader</strong>
+        <span>Custom ASCII post-processing pass with sharpening &amp; smoothstep</span>
+      </div>
+      <div class="tech-card">
+        <strong>EffectComposer</strong>
+        <span>RenderPass → ShaderPass pipeline</span>
+      </div>
+      <div class="tech-card">
+        <strong>Pointer Events API</strong>
+        <span>Unified mouse + touch drag handling</span>
+      </div>
+    </div>
+
+    <h3>How It Works</h3>
+    <p>
+      Unlike typical ASCII art that maps characters to pixels on the CPU, this uses a GPU shader pipeline:
+    </p>
+    <ul>
+      <li>A <code>BoxGeometry(50,50,50,32,32,32)</code> is textured with the Mona image and rendered normally by Three.js</li>
+      <li>The rendered frame is passed to an <code>EffectComposer</code> post-processing pipeline</li>
+      <li>A custom fragment shader pixelizes the scene into a grid, computes greyscale intensity per cell, and looks up the corresponding ASCII character from a pre-rendered atlas texture</li>
+      <li>Characters <code>' ..<>#'</code> form the brightness ramp (6 levels)</li>
+      <li>A Laplacian sharpening kernel + smoothstep crispens the final output</li>
+    </ul>
+
+    <h3>Controls</h3>
+    <table class="controls-table">
+      <thead><tr><th>Input</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Rotate left / right</td></tr>
+        <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Rotate up / down</td></tr>
+        <tr><td>Click + drag</td><td>Free rotation</td></tr>
+        <tr><td>Touch + drag</td><td>Free rotation (mobile)</td></tr>
+        <tr><td>⏸ Pause button</td><td>Stop / resume auto-rotation</td></tr>
+        <tr><td>🎨 Color button</td><td>Toggle rainbow gradient mode</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Performance</h3>
+    <ul>
+      <li>Zero garbage collection in animation loop — all Three.js objects pre-allocated</li>
+      <li>Device pixel ratio capped at 2× to prevent GPU overload on high-DPR screens</li>
+      <li>Debounced resize handler with proper texture disposal</li>
+      <li>Animation pauses automatically when tab is hidden</li>
+      <li>Responsive cell sizing: 4px → 5px → 6px → 9px across breakpoints</li>
+    </ul>
+
+    <h3>Author</h3>
+    <p>
+      Built by <a href="https://github.com/Manaiakalani" target="_blank" rel="noopener">@Manaiakalani</a>.
+    </p>
+  </main>
+
+  <footer>
+    <p>GitHub ASCII Cube &middot; v1.0.0 &middot; MIT License</p>
+  </footer>
+</body>
+</html>

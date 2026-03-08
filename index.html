@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="A 3D ASCII cube with the GitHub Mona logo, rendered with Three.js and a custom GLSL shader. Rotatable with arrow keys and drag.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+  <title>GitHub ASCII Cube</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      background: #0d1117;
+      overflow: hidden;
+      overscroll-behavior: none;
+      font-family: system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      cursor: grab;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    canvas:active { cursor: grabbing; }
+
+    #loader {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: #0d1117;
+      transition: opacity .6s ease;
+    }
+    #loader.hidden { opacity: 0; pointer-events: none; }
+    #loader .spinner {
+      width: 32px; height: 32px;
+      border: 2px solid rgba(255,255,255,.1);
+      border-top-color: rgba(255,255,255,.5);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hud {
+      position: fixed;
+      bottom: max(20px, env(safe-area-inset-bottom, 0px));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .hud button {
+      background: none;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 100px;
+      color: rgba(255,255,255,.5);
+      font-size: 13px;
+      padding: 8px 18px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color .2s, border-color .2s;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 44px;
+    }
+    .hud button:hover,
+    .hud button:focus-visible {
+      color: rgba(255,255,255,.8);
+      border-color: rgba(255,255,255,.3);
+      outline: none;
+    }
+
+    @media (max-width: 600px) {
+      .hud { bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+      .hud button { font-size: 12px; padding: 6px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loader"><div class="spinner"></div></div>
+  <canvas id="scene-canvas"
+    role="img"
+    aria-label="3D ASCII cube model with a texture of the GitHub Logo that is rotatable with arrow keys."
+    tabindex="0"
+  ></canvas>
+  <div class="hud">
+    <button id="pause-btn" aria-label="Toggle animation">⏸ Pause</button>
+    <button id="color-btn" aria-label="Toggle color mode">🎨 Color</button>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
+    import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
+
+    // ─── Constants ─────────────────────────────────────────────────────
+    const CHARACTERS      = ' ..<>#';
+    const DAMPING_FACTOR  = 0.25;
+    const ROTATION_SPEED  = 0.25;
+    const AUTO_SPIN_SPEED = 0.0025;
+    const DRAG_SENSITIVITY = 85;
+    const MAX_DPR         = 2;
+    const ENTER_DURATION  = 2200;
+
+    // Responsive cell size breakpoints
+    function getCellSize(w) {
+      if (w < 480)  return 4;
+      if (w < 768)  return 5;
+      if (w < 1024) return 6;
+      return 9;
+    }
+
+    // ─── Character atlas texture ───────────────────────────────────────
+    function createCharactersTexture(width, height, characters, fontSizeMultiplier = 1) {
+      const canvas = document.createElement('canvas');
+      const dpr = Math.min(MAX_DPR, window.devicePixelRatio || 1);
+      const SIZE = Math.max(width, height);
+      const MAX_PER_ROW = 16;
+      const CELL = SIZE / MAX_PER_ROW;
+      canvas.width = canvas.height = SIZE * dpr;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(dpr, dpr);
+      ctx.font = `${CELL * fontSizeMultiplier}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+
+      for (let i = 0; i < characters.length; i++) {
+        const col = i % MAX_PER_ROW;
+        const row = Math.floor(i / MAX_PER_ROW);
+        const metrics = ctx.measureText(characters[i]);
+        const actualH = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+        const vAdj = (CELL * fontSizeMultiplier - actualH) / 2;
+        ctx.fillText(characters[i], col * CELL + CELL / 2, row * CELL + CELL / 2 + vAdj / 2);
+      }
+
+      const texture = new THREE.CanvasTexture(
+        canvas, undefined,
+        THREE.RepeatWrapping, THREE.RepeatWrapping,
+        THREE.LinearFilter, THREE.LinearFilter,
+        THREE.RGBAFormat, THREE.FloatType
+      );
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    // ─── ASCII post-process shader ─────────────────────────────────────
+    const ASCIIShader = {
+      uniforms: {
+        tDiffuse:         { value: null },
+        uCharacters:      { value: null },
+        uCharactersCount: { value: 0 },
+        uCellSize:        { value: 8 },
+        uColor:           { value: new THREE.Color('#ffffff') },
+        uInvert:          { value: true },
+        uTime:            { value: 0 },
+        uGradientMix:     { value: 0 },
+        uOpacity:         { value: 0 },
+        resolution:       { value: new THREE.Vector2() },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D tDiffuse;
+        uniform sampler2D uCharacters;
+        uniform float uCharactersCount;
+        uniform float uCellSize;
+        uniform vec3  uColor;
+        uniform float uTime;
+        uniform float uGradientMix;
+        uniform bool  uInvert;
+        uniform vec2  resolution;
+        uniform float uOpacity;
+        varying vec2  vUv;
+
+        const vec2 SIZE = vec2(16.0, 16.0);
+
+        float greyscale(vec3 c) {
+          return dot(c, vec3(0.2126, 0.7152, 0.0722));
+        }
+
+        vec3 rotatingGradient(float t, vec2 uv) {
+          vec3 a = vec3(0.5), b = vec3(0.5), c = vec3(1.0), d = vec3(0.0, 0.33, 0.67);
+          float uvF = dot(uv - 0.5, uv - 0.5);
+          vec3 grad = a + b * cos(6.28318 * (c * (t + uvF * 2.0) + d));
+          return mix(grad, vec3(1.0 - length(uv - 0.5) * 2.0), 0.5);
+        }
+
+        float sharpen(sampler2D tex, vec2 uv, vec2 ts) {
+          float center = texture2D(tex, uv).r;
+          float top    = texture2D(tex, uv + vec2(0, ts.y)).r;
+          float bottom = texture2D(tex, uv - vec2(0, ts.y)).r;
+          float left   = texture2D(tex, uv - vec2(ts.x, 0)).r;
+          float right  = texture2D(tex, uv + vec2(ts.x, 0)).r;
+          return clamp(5.0 * center - top - bottom - left - right, 0.0, 1.0);
+        }
+
+        void main() {
+          vec2 cell = resolution / uCellSize;
+          vec2 grid = 1.0 / cell;
+          vec2 pUV  = grid * (0.5 + floor(vUv / grid));
+          vec4 px   = texture2D(tDiffuse, pUV);
+          float gs  = greyscale(px.rgb);
+
+          if (uInvert) gs = 1.0 - gs;
+
+          vec3 animC = mix(uColor, rotatingGradient(uTime, vUv), uGradientMix);
+
+          float ci  = floor((uCharactersCount - 1.0) * gs);
+          vec2  cp  = vec2(mod(ci, SIZE.x), floor(ci / SIZE.y));
+          vec2  off = vec2(cp.x, -cp.y) / SIZE;
+          vec2  cUV = mod(vUv * (cell / SIZE), 1.0 / SIZE) - vec2(0.0, 1.0 / SIZE) + off;
+
+          float intensity = sharpen(uCharacters, cUV, 1.0 / (SIZE * uCharactersCount));
+          intensity = smoothstep(0.4, 0.45, intensity);
+
+          vec3  finalColor = mix(vec3(0.0), animC * intensity, uOpacity);
+          float finalAlpha = intensity * px.a;
+
+          if (finalAlpha < 0.01) discard;
+          gl_FragColor = vec4(finalColor, finalAlpha);
+        }
+      `
+    };
+
+    // ─── Pre-allocated reusable objects (zero GC in hot paths) ─────────
+    const _tmpQuat  = new THREE.Quaternion();
+    const _tmpEuler = new THREE.Euler();
+    const _tmpAxis  = new THREE.Vector3();
+
+    // ─── Core state ────────────────────────────────────────────────────
+    const canvas   = document.getElementById('scene-canvas');
+    const scene    = new THREE.Scene();
+    const camera   = new THREE.PerspectiveCamera(10, innerWidth / innerHeight, 0.1, 2000);
+    camera.position.z = 500;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+
+    let cube, composer, asciiPass, monaTexture;
+    const currentQ = new THREE.Quaternion();
+    const targetQ  = new THREE.Quaternion();
+    let autoRotateDir = 1;
+    let isPlaying     = true;
+    let isDragging    = false;
+    let lastDragX     = 0;
+    let lastDragY     = 0;
+    let resizeTimer   = 0;
+
+    // ─── Texture loading with fallback ─────────────────────────────────
+    const TEXTURE_URL = 'https://thegithubshop.com/cdn/shop/t/5/assets/mona_2_invert.jpg?v=119377793214340058691729196760';
+
+    function createFallbackTexture() {
+      const size = 512;
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = '#fff';
+      // GitHub Invertocat SVG path
+      ctx.save();
+      ctx.translate(size * 0.04, size * 0.04);
+      ctx.scale(size / 30, size / 30);
+      ctx.fill(new Path2D('M14 0C6.27 0 0 6.27 0 14c0 6.19 4.01 11.44 9.58 13.29.7.13.96-.3.96-.68 0-.34-.01-1.45-.02-2.63-3.9.85-4.72-1.88-4.72-1.88-.64-1.62-1.56-2.05-1.56-2.05-1.27-.87.1-.85.1-.85 1.4.1 2.14 1.44 2.14 1.44 1.25 2.14 3.28 1.52 4.08 1.16.13-.91.49-1.52.89-1.87-3.11-.35-6.38-1.56-6.38-6.93 0-1.53.55-2.78 1.44-3.76-.14-.35-.63-1.78.14-3.72 0 0 1.18-.38 3.85 1.44a13.4 13.4 0 017.02 0c2.67-1.82 3.84-1.44 3.84-1.44.77 1.94.28 3.37.14 3.72.9.98 1.44 2.23 1.44 3.76 0 5.38-3.28 6.57-6.4 6.92.5.43.95 1.29.95 2.6 0 1.88-.02 3.39-.02 3.85 0 .38.25.82.96.68C23.99 25.44 28 20.19 28 14 28 6.27 21.73 0 14 0z'));
+      ctx.restore();
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    function initScene(texture) {
+      monaTexture = texture;
+      const geo = new THREE.BoxGeometry(50, 50, 50, 32, 32, 32);
+      const mat = new THREE.MeshStandardMaterial({ map: texture });
+      cube = new THREE.Mesh(geo, mat);
+
+      const initRot = new THREE.Euler(0.5, 0.75, 0, 'XYZ');
+      cube.quaternion.setFromEuler(initRot);
+      currentQ.setFromEuler(initRot);
+      targetQ.setFromEuler(initRot);
+      cube.position.set(0, 1.0, 0);
+      scene.add(cube);
+      scene.add(new THREE.AmbientLight(0xffffff, 1.95));
+
+      setupPostProcessing();
+      onResize();
+      playEntranceAnimation();
+      renderer.setAnimationLoop(animate);
+    }
+
+    function setupPostProcessing() {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+
+      asciiPass = new ShaderPass(ASCIIShader);
+      asciiPass.uniforms.uCharactersCount.value = CHARACTERS.length;
+      asciiPass.uniforms.uColor.value = new THREE.Color(0xffffff);
+      asciiPass.uniforms.uInvert.value = true;
+      composer.addPass(asciiPass);
+    }
+
+    function playEntranceAnimation() {
+      asciiPass.uniforms.uOpacity.value = 0;
+      cube.scale.set(0, 0, 0);
+      const start = performance.now();
+
+      (function tick() {
+        const t = Math.min(1, (performance.now() - start) / ENTER_DURATION);
+        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        asciiPass.uniforms.uOpacity.value = ease;
+        cube.scale.setScalar(ease);
+        if (t < 1) requestAnimationFrame(tick);
+      })();
+    }
+
+    // Load with CORS fallback
+    const loaderEl = document.getElementById('loader');
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    loader.load(TEXTURE_URL, tex => {
+      initScene(tex);
+      loaderEl.classList.add('hidden');
+    }, undefined, () => {
+      console.warn('Texture CORS blocked — using fallback Invertocat');
+      initScene(createFallbackTexture());
+      loaderEl.classList.add('hidden');
+    });
+
+    // ─── Animation loop (zero allocations) ─────────────────────────────
+    function animate() {
+      if (!cube) return;
+      asciiPass.material.uniforms.uTime.value += 0.001;
+
+      _tmpEuler.set(0, AUTO_SPIN_SPEED * autoRotateDir, 0);
+      _tmpQuat.setFromEuler(_tmpEuler);
+      targetQ.multiplyQuaternions(_tmpQuat, targetQ);
+      currentQ.slerp(targetQ, DAMPING_FACTOR);
+      cube.quaternion.copy(currentQ);
+
+      composer.render();
+    }
+
+    // ─── Resize (debounced, disposes old textures) ─────────────────────
+    function onResize() {
+      const w = innerWidth, h = innerHeight;
+      const dpr = Math.min(MAX_DPR, window.devicePixelRatio || 1);
+
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(dpr);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+
+      if (composer) {
+        composer.setSize(w, h);
+        composer.setPixelRatio(dpr);
+      }
+      if (asciiPass) {
+        const oldTex = asciiPass.uniforms.uCharacters.value;
+        if (oldTex) oldTex.dispose();
+
+        asciiPass.uniforms.resolution.value.set(w, h);
+        asciiPass.uniforms.uCharacters.value = createCharactersTexture(w, h, CHARACTERS, 1);
+        asciiPass.uniforms.uCellSize.value = getCellSize(w);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(onResize, 100);
+    });
+
+    // ─── Keyboard controls (zero allocations) ──────────────────────────
+    canvas.addEventListener('keydown', e => {
+      switch (e.key) {
+        case 'ArrowLeft':  _tmpAxis.set(0, -1, 0); autoRotateDir = -1; break;
+        case 'ArrowRight': _tmpAxis.set(0,  1, 0); autoRotateDir =  1; break;
+        case 'ArrowUp':    _tmpAxis.set(-1, 0, 0); autoRotateDir = -1; break;
+        case 'ArrowDown':  _tmpAxis.set( 1, 0, 0); autoRotateDir =  1; break;
+        default: return;
+      }
+      e.preventDefault();
+      _tmpQuat.setFromAxisAngle(_tmpAxis, ROTATION_SPEED);
+      targetQ.multiplyQuaternions(_tmpQuat, targetQ).normalize();
+    });
+
+    // ─── Pointer drag (unified mouse + touch, zero allocations) ────────
+    function applyDragDelta(clientX, clientY) {
+      const dx = clientX - lastDragX;
+      const dy = clientY - lastDragY;
+      lastDragX = clientX;
+      lastDragY = clientY;
+
+      _tmpEuler.set(dy / DRAG_SENSITIVITY, dx / DRAG_SENSITIVITY, 0, 'XYZ');
+      _tmpQuat.setFromEuler(_tmpEuler);
+      targetQ.multiplyQuaternions(_tmpQuat, targetQ);
+      autoRotateDir = clientX < innerWidth / 2 ? -1 : 1;
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      isDragging = true;
+      lastDragX = e.clientX;
+      lastDragY = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!isDragging) return;
+      applyDragDelta(e.clientX, e.clientY);
+    });
+
+    canvas.addEventListener('pointerup', e => {
+      isDragging = false;
+      canvas.releasePointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener('pointercancel', e => {
+      isDragging = false;
+      canvas.releasePointerCapture(e.pointerId);
+    });
+
+    // ─── Pause / Play ──────────────────────────────────────────────────
+    const pauseBtn = document.getElementById('pause-btn');
+    pauseBtn.addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      pauseBtn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+      pauseBtn.setAttribute('aria-label', isPlaying ? 'Pause animation' : 'Play animation');
+      renderer.setAnimationLoop(isPlaying ? animate : null);
+    });
+
+    // ─── Color mode toggle ─────────────────────────────────────────────
+    const colorBtn = document.getElementById('color-btn');
+    let gradientMode = false;
+    let gradientTween = null;
+    colorBtn.addEventListener('click', () => {
+      gradientMode = !gradientMode;
+      colorBtn.textContent = gradientMode ? '⬜ Mono' : '🎨 Color';
+      colorBtn.setAttribute('aria-label', gradientMode ? 'Switch to monochrome' : 'Switch to color mode');
+      // Smooth transition
+      const from = asciiPass.uniforms.uGradientMix.value;
+      const to = gradientMode ? 1.0 : 0.0;
+      const start = performance.now();
+      cancelAnimationFrame(gradientTween);
+      (function tween() {
+        const t = Math.min(1, (performance.now() - start) / 500);
+        asciiPass.uniforms.uGradientMix.value = from + (to - from) * t;
+        if (t < 1) gradientTween = requestAnimationFrame(tween);
+      })();
+    });
+
+    // Pause when tab is hidden to save resources
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isPlaying) {
+        renderer.setAnimationLoop(null);
+      } else if (!document.hidden && isPlaying) {
+        renderer.setAnimationLoop(animate);
+      }
+    });
+
+    // ─── Cleanup on navigation ─────────────────────────────────────────
+    window.addEventListener('beforeunload', () => {
+      renderer.setAnimationLoop(null);
+      if (asciiPass?.uniforms.uCharacters.value) asciiPass.uniforms.uCharacters.value.dispose();
+      if (monaTexture) monaTexture.dispose();
+      renderer.dispose();
+    });
+
+    canvas.focus();
+  </script>
+</body>
+</html>

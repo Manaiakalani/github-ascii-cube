@@ -1,6 +1,6 @@
 # 🎲 GitHub ASCII Cube
 
-A faithful recreation of the 3D ASCII cube from the [GitHub Shop](https://thegithubshop.com) footer — a rotating cube textured with the GitHub Mona logo, rendered entirely as ASCII art using a custom GLSL post-processing shader.
+A faithful recreation of the 3D ASCII cube from the [GitHub Shop](https://thegithubshop.com) footer: a rotating cube textured with the GitHub Mona logo, rendered entirely as ASCII art using a custom GLSL post-processing shader.
 
 ```
      . . < < > > # #
@@ -17,13 +17,13 @@ A faithful recreation of the 3D ASCII cube from the [GitHub Shop](https://thegit
 
 ## ✨ Features
 
-- **GPU-powered ASCII rendering** — GLSL fragment shader converts the 3D scene to ASCII in real-time
-- **Faithful reproduction** — same geometry, shader, character ramp (`' ..<>#'`), and animation as the original
-- **Interactive controls** — arrow keys, click+drag, touch drag
-- **Rainbow mode** — toggle gradient color shader with the 🎨 button
-- **Responsive** — adaptive cell sizes across 4 breakpoints (mobile → desktop)
-- **Zero dependencies** — single HTML file, Three.js loaded from CDN
-- **Dockerized** — serve with `docker compose up`
+- **GPU-powered ASCII rendering**: GLSL fragment shader converts the 3D scene to ASCII in real-time
+- **Faithful reproduction**: same geometry, shader, character ramp (`' ..<>#'`), and animation as the original
+- **Interactive controls**: arrow keys, click+drag, touch drag
+- **Rainbow mode**: toggle gradient color shader with the 🎨 button
+- **Responsive**: adaptive cell sizes across 4 breakpoints (mobile → desktop)
+- **Zero dependencies**: single HTML file, Three.js loaded from CDN
+- **Dockerized**: serve with `docker compose up`
 
 ## 🚀 Quick Start
 
@@ -90,8 +90,8 @@ docker-compose.yml  ← One-command deploy
 
 ## ⚡ Performance
 
-- **Zero GC pressure** — reusable Three.js objects in animation loop & input handlers
-- **DPR capped at 2×** — prevents 9× framebuffer bloat on high-DPR mobile devices
+- **Zero GC pressure**: reusable Three.js objects in animation loop & input handlers
+- **DPR capped at 2×**: prevents 9× framebuffer bloat on high-DPR mobile devices
 - **Debounced resize** with GPU texture disposal
 - **Auto-pause** when tab is hidden (`visibilitychange`)
 - **Responsive cell sizing**: 4px / 5px / 6px / 9px across breakpoints

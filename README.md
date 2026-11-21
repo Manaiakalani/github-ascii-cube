@@ -1,5 +1,7 @@
 # 🎲 GitHub ASCII Cube
 
+[Live demo](https://manaiakalani.github.io/github-ascii-cube/)
+
 A faithful recreation of the 3D ASCII cube from the [GitHub Shop](https://thegithubshop.com) footer: a rotating cube textured with the GitHub Mona logo, rendered entirely as ASCII art using a custom GLSL post-processing shader.
 
 ```

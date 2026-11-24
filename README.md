@@ -1,107 +1,66 @@
-# 🎲 GitHub ASCII Cube
+# GitHub ASCII Cube
 
 [Live demo](https://manaiakalani.github.io/github-ascii-cube/)
 
-A faithful recreation of the 3D ASCII cube from the [GitHub Shop](https://thegithubshop.com) footer: a rotating cube textured with the GitHub Mona logo, rendered entirely as ASCII art using a custom GLSL post-processing shader.
+A rotating cube textured with the GitHub Mona logo, drawn as ASCII by a GLSL post-process shader. It recreates the cube in the [GitHub Shop](https://thegithubshop.com) footer: Mona on a box, rendered with the character ramp of two spaces, `.`, `<`, `>`, `#`.
 
-```
-     . . < < > > # #
-   . . < < > > # # . .
- . . < < > > # # . . < <
- . < < > > # # . . < < >
- . < > > # # . . < < > >
- . < > > # # . . < < > >
- . < < > > # # . . < < >
- . . < < > > # # . . < <
-   . . < < > > # # . .
-     . . < < > > # #
-```
+![ASCII cube textured with the GitHub Mona logo, with Pause and Color controls](docs/screenshot.png)
 
-## ✨ Features
+Three.js r170 loads from jsDelivr. The page is `index.html`. [`about.html`](https://manaiakalani.github.io/github-ascii-cube/about.html) is a short write-up of the same pipeline.
 
-- **GPU-powered ASCII rendering**: GLSL fragment shader converts the 3D scene to ASCII in real-time
-- **Faithful reproduction**: same geometry, shader, character ramp (`' ..<>#'`), and animation as the original
-- **Interactive controls**: arrow keys, click+drag, touch drag
-- **Rainbow mode**: toggle gradient color shader with the 🎨 button
-- **Responsive**: adaptive cell sizes across 4 breakpoints (mobile → desktop)
-- **Zero dependencies**: single HTML file, Three.js loaded from CDN
-- **Dockerized**: serve with `docker compose up`
+## Run it
 
-## 🚀 Quick Start
-
-### Open directly
-
-Just open `index.html` in a modern browser (Chrome, Edge, Firefox, Safari 17+).
-
-### With a local server
+Serve the folder, then open the page. The script is an ES module, and the Mona texture and Three.js both come from the network.
 
 ```bash
-# Python
-python -m http.server 8080 -d .
-
-# Node.js
-npx serve .
+python3 -m http.server 8080
 ```
 
-### With Docker
+Open http://localhost:8080.
+
+Docker publishes the same files:
 
 ```bash
-docker compose up -d
-# → http://localhost:8080
+docker compose up
 ```
 
-Or build manually:
+nginx listens on port 80 inside the container and Compose maps that to http://localhost:8080.
 
-```bash
-docker build -t github-ascii-cube .
-docker run -p 8080:80 github-ascii-cube
-```
+## Controls
 
-## 🎮 Controls
+The scene canvas is focused on load.
 
 | Input | Action |
-|---|---|
-| `←` `→` | Rotate left / right |
-| `↑` `↓` | Rotate up / down |
-| Click + drag | Free rotation |
-| Touch + drag | Free rotation (mobile) |
-| ⏸ Pause | Stop / resume auto-rotation |
-| 🎨 Color | Toggle rainbow gradient mode |
+| --- | --- |
+| Left / Right | Rotate around Y, and set the auto-spin direction |
+| Up / Down | Rotate around X |
+| Drag | Free rotation. Pointer events cover mouse and touch |
+| Pause | Stop or resume the render loop |
+| Color | Fade a rotating gradient in or out over 500ms |
 
-## 🔧 How It Works
+Pause stops drawing, so drag and arrow keys show up again after Play. Arrow keys need the canvas focused.
 
-Unlike CPU-based ASCII art, this uses a **GPU shader pipeline**:
+## How it is drawn
 
-1. A subdivided `BoxGeometry(50,50,50,32,32,32)` is textured with the Mona image and rendered with Three.js
-2. The frame passes through an `EffectComposer` → `RenderPass` → `ShaderPass` pipeline
-3. A custom fragment shader:
-   - Pixelizes the scene into a grid based on cell size
-   - Converts each cell to greyscale (ITU-R BT.709 luminance)
-   - Maps brightness to one of 6 ASCII characters from a pre-rendered atlas
-   - Applies Laplacian sharpening + smoothstep for crisp edges
-4. Rotation uses quaternion SLERP with damping factor 0.25 for smooth momentum
+Three.js draws a `BoxGeometry(50, 50, 50, 32, 32, 32)` with a `MeshStandardMaterial`. The texture is the GitHub Shop Mona image. If that request is blocked, the page paints an Invertocat onto a canvas and uses that instead.
 
-## 🏗️ Architecture
+`EffectComposer` runs a `RenderPass`, then a `ShaderPass`. The fragment shader:
 
-```
-index.html          ← Main app (Three.js + GLSL shader, self-contained)
-about.html          ← Project info & tech details
-Dockerfile          ← nginx:alpine container
-docker-compose.yml  ← One-command deploy
-```
+1. Snaps the frame to a cell grid.
+2. Converts each cell to greyscale with ITU-R BT.709 weights (`0.2126`, `0.7152`, `0.0722`), then inverts it.
+3. Picks one of the six characters from a canvas atlas.
+4. Sharpens the glyph with a 5-tap Laplacian (`5 * center - neighbors`) and `smoothstep`.
 
-## ⚡ Performance
+Cell size follows the viewport width: 4px below 480, 5px below 768, 6px below 1024, and 9px from 1024 up. Device pixel ratio is capped at 2. Resize is debounced by 100ms and the previous atlas texture is disposed.
 
-- **Zero GC pressure**: reusable Three.js objects in animation loop & input handlers
-- **DPR capped at 2×**: prevents 9× framebuffer bloat on high-DPR mobile devices
-- **Debounced resize** with GPU texture disposal
-- **Auto-pause** when tab is hidden (`visibilitychange`)
-- **Responsive cell sizing**: 4px / 5px / 6px / 9px across breakpoints
+Rotation is a quaternion slerp toward a target, with damping `0.25`. An auto-spin of `0.0025` radians per frame keeps turning the target until you pause. The loop also pauses while the tab is hidden. The entrance scales the cube in over 2.2 seconds.
 
-## 📄 License
+## GitHub Pages
+
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes `index.html` and `about.html` on every push to `master`. The live site is https://manaiakalani.github.io/github-ascii-cube/.
+
+## License
 
 [MIT](LICENSE)
 
----
-
-Built by [@Manaiakalani](https://github.com/Manaiakalani)
+Built by [@Manaiakalani](https://github.com/Manaiakalani).
